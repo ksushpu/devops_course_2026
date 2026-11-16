@@ -75,20 +75,13 @@ check "Сертификат действителен минимум 30 дней"
 SITE_DIR="/var/www/devops-site"
 # find ... -perm -o+w находит файлы, где бит записи установлен для others.
 # Если таких файлов нет, вывод пустой.
-world_writable_files=$(find "$SITE_DIR" -type f -perm -o+w 2>/dev/null)
+world_writable_files=$(find "$SITE_DIR" -perm -o+w 2>/dev/null)
 KEY_PATH="/etc/ssl/private/devops.key"
-if [[ -f "$KEY_PATH" ]]; then
-    key_perms=$(sudo stat -c '%a' "$KEY_PATH")
-else
-    key_perms="missing"
-fi
+key_perms=$(sudo stat -c '%a' "$KEY_PATH" 2>/dev/null || echo "missing")
 
-# Формируем общий статус проверки (г)
-# Ожидаем: список файлов пустой AND права на ключ равно "600"
 if [[ -z "$world_writable_files" ]] && [[ "$key_perms" == "600" ]]; then
     security_check="secure"
 else
-    # Для отладки можно вывести детали, но в рамках check() нам нужна одна строка результата
     security_check="violation detected"
 fi
 
