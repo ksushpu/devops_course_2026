@@ -64,11 +64,6 @@
 - `02-keys-configured` — состояние после настройки доступа по SSH-ключу.
 - `03-ssh-hardened` — состояние после настройки SSH и межсетевого экрана.
 
-Вот готовый текст раздела **8. Веб-сервер** для файла `docs/server-setup.md`.
-
-Он составлен строго по пунктам требования методички (пакет, конфиг, каталог+права, сертификаты+права, команда генерации) и оптимизирован под будущую автоматизацию в Ansible (ПР №11).
-
-Скопируйте этот блок целиком в конец вашего документа:
 ## 8. Веб-сервер
 
 ### 8.1. Устанавливаемый пакет
@@ -148,3 +143,54 @@ sudo openssl req -x509 -nodes -days 365 -newkey rsa:2048 \
     ```bash
     sudo systemctl reload nginx
     ```
+
+## 9. Контейнеризация
+
+### Установка Docker Engine
+Docker Engine установлен из официального репозитория Docker (не из пакета `docker.io` дистрибутива).  
+
+Версия:  
+```
+docker version
+```
+(раздел Server)
+
+### Группа docker
+Учётная запись `devops` добавлена в группу `docker`:
+```bash
+sudo usermod -aG docker devops
+```
+После добавления выполнена новая SSH-сессия.
+
+### Расположение проекта
+Проект расположен в домашнем каталоге пользователя:  
+`~/app`
+
+### Файл .env
+- Расположение: `~/app/.env`
+- Права: `600` (`chmod 600 .env`)
+- Содержит секреты (пароль PostgreSQL). В репозиторий не добавляется (указан в `.gitignore`).
+
+### Публикуемые порты
+- Приложение: только на `127.0.0.1:5000` (недоступно из внешней сети)
+- PostgreSQL (5432): не публикуется (доступен только внутри сети Docker Compose)
+
+### Именованные тома
+- `app_db_data` — данные PostgreSQL (`/var/lib/postgresql/data`)
+- Том сохраняется при `docker compose down` и удаляется только при `docker compose down -v`
+
+### Обратный прокси-сервер
+Nginx проксирует запросы с префиксом `/app/` на контейнер приложения:
+
+```nginx
+location /app/ {
+    proxy_pass http://127.0.0.1:5000/;
+    proxy_set_header Host              $host;
+    proxy_set_header X-Real-IP         $remote_addr;
+    proxy_set_header X-Forwarded-For   $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+}
+```
+
+Конфигурация находится в файле `/etc/nginx/sites-available/devops-site` (блок HTTPS).  
+Статический ресурс по корневому пути (`/`) сохранён.
