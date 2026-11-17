@@ -87,6 +87,29 @@ fi
 
 check "Нет world-writable файлов в сайте и права ключа 600" "secure" "$security_check"
 
+echo "[5] Контейнеризация"
+
+# а) служба docker активна
+status_docker="$(systemctl is-active docker)"
+check "Служба Docker активна" "active" "$status_docker"
+
+# б) контейнер СУБД в состоянии healthy
+db_health="$(docker inspect -f '{{.State.Health.Status}}' app-db-1 2>/dev/null || echo "missing")"
+check "Контейнер СУБД в состоянии healthy" "healthy" "$db_health"
+
+# в) порты 5000 и 5432 не слушаются нигде, кроме 127.0.0.1
+# Если команда ничего не нашла — порты в порядке
+if ! ss -tln | grep -E ':(5000|5432)\b' | grep -v '127.0.0.1' | grep -q .; then
+    ports_status="ok"
+else
+    ports_status="exposed"
+fi
+check "Порты 5000 и 5432 только на 127.0.0.1" "ok" "$ports_status"
+
+# г) права файла .env равны 600
+env_perms="$(stat -c '%a' ~/app/.env 2>/dev/null || echo "missing")"
+check "Права файла .env равны 600" "600" "$env_perms"
+
 echo "Итого: OK=$PASS, FAIL=$FAIL"
 
 if (( FAIL > 0 )); then
